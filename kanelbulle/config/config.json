@@ -1,0 +1,10 @@
+{
+  "logger": {
+    "file": {
+      "level": "debug"
+    },
+    "console": {
+      "level": "warning"
+    }
+  }
+}
