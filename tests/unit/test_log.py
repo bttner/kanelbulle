@@ -1,4 +1,4 @@
-"""Tests for arms.utils.log."""
+"""Tests for kanelbulle.utils.log."""
 
 import importlib
 import pytest

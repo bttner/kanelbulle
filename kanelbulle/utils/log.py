@@ -29,7 +29,7 @@ except (TypeError, KeyError):
     ERROR = True
 
 # Initialize handlers.
-FILE = logging.FileHandler('arms/utils/log.log')
+FILE = logging.FileHandler('kanelbulle/utils/log.log')
 FILE.setFormatter(FORMATTER)
 FILE.setLevel(FILE_LEVEL)
 
@@ -42,7 +42,7 @@ def __init__():
     """Reset log file or create a new one in case the respective file does not
     exist.
     """
-    wfile = logging.FileHandler('arms/utils/log.log', mode='w')
+    wfile = logging.FileHandler('kanelbulle/utils/log.log', mode='w')
     wfile.setLevel(logging.DEBUG)
 
     logger = logging.getLogger(__name__)
