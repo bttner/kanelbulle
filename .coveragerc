@@ -1,0 +1,8 @@
+[report]
+# Show missing lines.
+show_missing = True
+
+# Specify files to leave out of reporting.
+omit =
+	kanelbulle/__init__.py
+    kanelbulle/__main__.py
