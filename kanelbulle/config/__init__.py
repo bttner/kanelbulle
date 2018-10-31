@@ -1,1 +1,1 @@
-"""Modules related to config"""
+"""Modules related to config."""

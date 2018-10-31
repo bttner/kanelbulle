@@ -1,1 +1,1 @@
-"""Modules related to gui"""
+"""Modules related to gui."""
