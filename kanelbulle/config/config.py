@@ -19,7 +19,7 @@ class Container:
     def load(self):
         """Load configurations from file."""
         try:
-            with open("arms/config/config.json", 'r') as stream:
+            with open("kanelbulle/config/config.json", 'r') as stream:
                 self.data = json.load(stream)
         except OSError as e:
             self.data = None
