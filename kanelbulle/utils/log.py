@@ -5,8 +5,7 @@ from kanelbulle.config import config
 
 # Log format to use.
 FORMATTER = logging.Formatter('%(asctime)s | %(name)-10s | '
-                              '%(levelname)-8s | %(message)s', '%Y-%m-%d '
-                                                               '%H:%M:%S')
+                              '%(levelname)-8s | %(message)s', '%Y-%m-%d %H:%M')
 
 # Log levels to use.
 LOG_LEVELS = {
@@ -15,15 +14,6 @@ LOG_LEVELS = {
     'WARNING': logging.WARNING,
     'INFO': logging.INFO,
     'DEBUG': logging.DEBUG,
-}
-
-# Associate each log level with a HTML color.
-LOG_LEVEL_COLOR = {
-    'CRITICAL': "purple",
-    'ERROR': "red",
-    'WARNING': "blue",
-    'INFO': "black",
-    'DEBUG': "green",
 }
 
 # Load configurations from file. If it fails, take predefined values.
@@ -83,4 +73,3 @@ def get_logger(name):
 app = get_logger('app')
 config = get_logger('config')
 log = get_logger('log')
-gui = get_logger('gui')

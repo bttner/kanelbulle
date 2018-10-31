@@ -6,8 +6,5 @@
     "console": {
       "level": "warning"
     }
-  },
-  "socket": {
-    "sleep": 1.0
   }
 }
