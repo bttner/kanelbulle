@@ -115,5 +115,8 @@ class MainWindow(QMainWindow):
             widget: An instance of QTextEdit.
             msg: The html formatted text do display.
         """
-        widget.moveCursor(QTextCursor.End)
-        widget.insertHtml(msg)
+        try:
+            widget.moveCursor(QTextCursor.End)
+            widget.insertHtml(msg)
+        except OSError:
+            pass

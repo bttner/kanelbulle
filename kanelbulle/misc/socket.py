@@ -64,8 +64,14 @@ class SocketServer:
 
     def accept(self):
         """Accepts a connection."""
-        self.client_conn, self.client_addr = self.socket.accept()
-        self.logger.info("SERVER | Connection to client accepted.")
+        try:
+            self.client_conn, self.client_addr = self.socket.accept()
+        except socket.timeout:
+            return False
+
+        self.logger.info("SERVER | Connection to client accepted. The "
+                         "client IP is: {}.".format(self.client_addr))
+        return True
 
     def send(self, data, path=False):
         """Sends data to the socket in two steps.
@@ -101,11 +107,11 @@ class SocketServer:
         try:
             # 1. step: Send the length of the message.
             length = len(data)
-            self.client_conn.send(b'%d\n' % length)
+            self.client_conn.sendall(b'%d\n' % length)
             self.logger.debug('SERVER | Send length of message: {}'.format(
                 length))
 
-            # 2. step: Send the original message
+            # 2. step: Send the original message.
             self.client_conn.sendall(data.encode())
             self.logger.debug('SERVER | Send original message: {}'.format(data))
 
@@ -147,12 +153,19 @@ class SocketServer:
             length_str += char
             try:
                 char = self.client_conn.recv(1).decode()
+            except socket.timeout:
+                return [True, False]
             except socket.error:
                 self.logger.error('SERVER | Error, can not receive data. '
                                   'Reason: No client is connected.')
                 return [False, False]
-            if (char.isdigit() is False) and (char != "") and (char != '\n'):
-                return [True, False]
+            if not char:
+                self.logger.error('SERVER | Error, can not receive data. '
+                                  'Reason: No client is connected.')
+                return [False, False]
+            if (char.isdigit() is False) and (char != '\n'):
+                length_str = ""
+                char = ""
         total = int(length_str)
 
         # Receive the data chunk by chunk.
@@ -162,6 +175,8 @@ class SocketServer:
             try:
                 recv_size = self.client_conn.recv_into(view[next_offset:],
                                                        total - next_offset)
+            except socket.timeout:
+                return [True, False]
             except socket.error:
                 self.logger.error('SERVER | Error, can not receive data. '
                                   'Reason: No client is connected.')
@@ -199,12 +214,13 @@ class SocketServer:
 
     def close(self):
         """Closes the socket and the connection to the client."""
-        if self.client_conn:
+        if self.client_conn is not None:
             self.client_conn.close()
             self.client_conn = None
+            self.client_addr = None
             self.logger.info('SERVER | Close connection to client.')
 
-        if self.socket:
+        if self.socket is not None:
             self.socket.close()
             self.socket = None
             self.logger.info('SERVER | Close socket.')
@@ -218,8 +234,8 @@ class Server(SocketInterface):
 
     def __init__(self, count):
         super().__init__(count)
-
         self.server = SocketServer(self.logger)
+        self.last_client_addr = None
 
         # Threads.
         self.accept_thread = AcceptThread()
@@ -251,20 +267,29 @@ class Server(SocketInterface):
         self.sendButton.clicked.connect(self._send)
         self.startButton.clicked.connect(self._toggle_recv)
         self.accept_thread.signal.connect(self._enable_start_recv)
-        self.send_thread.signal.connect(self._start_accept)
-        self.receive_thread.signal.connect(self._start_accept)
+        self.send_thread.signal.connect(lambda: self._start_accept("send"))
+        self.receive_thread.signal.connect(lambda: self._start_accept("recv"))
 
     def _toggle_server_status(self):
         """Either starts or stops the server."""
         if self.createButton.isChecked():
+            # Starts the server.
             ok = self._create_server()
             if not ok:
                 self.createButton.click()
         else:
+            # Stops the server
+            if self.accept_thread.isRunning():
+                self.accept_thread.stop_thread()
+                self.accept_thread.wait()
+
             if self.startButton.isChecked():
                 self.startButton.click()
             self.startButton.setEnabled(False)
-            self.accept_thread.terminate()
+
+            if self.send_thread.isRunning():
+                self.send_thread.wait()
+
             self.server.close()
 
     def _create_server(self):
@@ -313,30 +338,38 @@ class Server(SocketInterface):
         if self.startButton.isChecked():
             if self.receive_thread.server is not None:
                 self.logger.info('SERVER | Start receiving messages.')
+
                 self.receive_thread.start()
             else:
                 self.logger.critical('Internal error. Server for class '
                                      'ReceiveThread is not defined. Please '
                                      'restart the tool.')
         else:
-            self.receive_thread.terminate()
+            self.receive_thread.stop_thread()
+            self.receive_thread.wait()
             self.logger.info('SERVER | Stop receiving messages.')
 
     def _enable_start_recv(self):
         """Starts receiving messages after a connection to a client is made."""
+        self.last_client_addr = self.server.client_addr
         self.startButton.setEnabled(True)
         self.startButton.click()
 
-    def _start_accept(self):
+    def _start_accept(self, who):
         """Stops receiving messages and starts listening for incoming
         connection requests."""
         if self.startButton.isChecked():
+            # Stops receiving messages.
             self.startButton.click()
-        if self.createButton.isChecked():
+        if self.createButton.isChecked() \
+                and not self.accept_thread.isRunning() \
+                and self.last_client_addr == self.server.client_addr:
+            # Starts listening for incoming connection requests.
             self.startButton.setEnabled(False)
-            if not self.accept_thread.isRunning():
-                self.accept_thread.start()
-                self.logger.info('SERVER | Listening for connections.')
+            self.server.client_conn = None
+            self.server.client_addr = None
+            self.accept_thread.start()
+            self.logger.info('SERVER | Listening for connections.')
 
 
 class AcceptThread(QThread):
@@ -348,13 +381,24 @@ class AcceptThread(QThread):
     def __init__(self):
         QThread.__init__(self)
         self.server = None
+        self.stop = False
 
     def __del__(self):
         self.wait()
 
+    def stop_thread(self):
+        self.stop = True
+
     def run(self):
-        self.server.accept()
-        self.signal.emit()
+        self.stop = False
+        self.server.socket.settimeout(1)
+        while True:
+            ok = self.server.accept()
+            if ok or self.stop:
+                break
+        self.server.socket.settimeout(None)
+        if not self.stop:
+            self.signal.emit()
 
 
 class ReceiveThread(QThread):
@@ -366,18 +410,25 @@ class ReceiveThread(QThread):
     def __init__(self):
         QThread.__init__(self)
         self.server = None
-        self.sleep = 1.0
+        self.stop = False
 
     def __del__(self):
         self.wait()
 
+    def stop_thread(self):
+        self.stop = True
+
     def run(self):
+        self.stop = False
+        self.server.client_conn.settimeout(1)
         while True:
-            time.sleep(self.sleep)
+            time.sleep(0.5)
             ok = self.server.recv()
-            if not ok[0]:
+            if not ok[0] or self.stop:
                 break
-        self.signal.emit()
+        self.server.client_conn.settimeout(None)
+        if not self.stop:
+            self.signal.emit()
 
 
 class SendThread(QThread):
