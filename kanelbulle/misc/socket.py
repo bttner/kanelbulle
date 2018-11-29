@@ -188,6 +188,7 @@ class SocketServer:
         # If the received message is from a special format, log it with the
         # specified level and client name. Otherwise, log it with level INFO
         # under the name Client.
+        data = data.replace("'", '\"')
         client = None
         level = None
         msg = None
